@@ -1,8 +1,7 @@
 import sqlite3
 from pathlib import Path
 from typing import Iterable, Optional
-from weakref import ref, ReferenceType
-from .threadsafe_db import ThreadsafeDatabase, retry_while_locked, conditional_lock
+from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
 from .iterator_stack import IteratorStack
 
 
@@ -40,23 +39,6 @@ class FileIndexNode:
             )
 
             yield from map(self.sub_node, files)
-        # stack = [self]
-        # while stack:
-        #     node = stack.pop()
-        #
-        #     files = node.file_index.db.execute(
-        #         'select * from files where parent=? and '
-        #         'path like ? order by path asc', (node.id, f'%{keyword}%')
-        #     )
-        #
-        #     yield from map(self.sub_node, files)
-        #
-        #     if recursive:
-        #         folders = node.file_index.db.execute(
-        #             'select * from folders where parent=? order by path asc', (node.id,)
-        #         )
-        #
-        #         stack.extend(map(self.sub_node, folders))
 
     def iterdir(self, recursive=False):
         if recursive:
@@ -79,27 +61,7 @@ class FileIndexNode:
         else:
             yield from self
 
-        # stack = IteratorStack()
-        # stack.push(self)
-        #
-        # for node in stack:  # type: FileIndexNode
-        #     yield node
-        #
-        #     if recursive and node.path.is_dir():
-        #         stack.push(node)
-
     def __iter__(self):
-        # folders = self.file_index.db.execute(
-        #     'select * from folders where parent=? order by path asc', (self.id,)
-        # )
-        #
-        # files = self.file_index.db.execute(
-        #     'select * from files where parent=? order by path asc', (self.id,)
-        # )
-        #
-        # yield from map(self.sub_node, folders)
-        # yield from map(self.sub_node, files)
-
         items = self.file_index.db.execute(
             f'''
             select * from folders where parent=?
@@ -150,17 +112,6 @@ class FileIndex:
             ');'
         )
         return result
-
-    # def __get_or_add_folder_id(self, path: Path, cursor: sqlite3.Cursor, parent_id=None):
-    #     folder_node = self.get_folder_node_by_path(path, acquire_lock=False)
-    #     if folder_node:
-    #         return folder_node.id
-    #     else:
-    #         retry_while_locked(
-    #             cursor.execute,
-    #             'insert into folders (path, parent) values (?, ?)',
-    #             (str(path), parent_id)
-    #         )
 
     def __get_parent_id(self, path: Path, cursor: sqlite3.Cursor, cache: dict):
         parent = path.parent
