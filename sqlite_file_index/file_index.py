@@ -215,10 +215,18 @@ class FileIndex:
     def vacuum(self):
         self.db.execute('vacuum')
 
-    def search(self, keyword):
+    def search(self, keyword, yield_folders=False):
+        if yield_folders:
+            folders = self.db.execute(
+                'select * from folders where '
+                'path like ? order by path collate nocase asc', (f'%{keyword}%',)
+            )
+
+            yield from map(lambda row: FileIndexNode(self, row), folders)
+
         files = self.db.execute(
             'select * from files where '
-            'path like ? order by path asc', (f'%{keyword}%',)
+            'path like ? order by path collate nocase asc', (f'%{keyword}%',)
         )
 
         yield from map(lambda row: FileIndexNode(self, row), files)

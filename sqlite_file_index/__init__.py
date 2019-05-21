@@ -1,1 +1,1 @@
-from .sqlite_file_index import FileIndex
+from .file_index import FileIndex
