@@ -1,7 +1,7 @@
 import sqlite3
 import threading
 from .retry import Retry
-from typing import Optional, Tuple, Iterable, Any
+from typing import Tuple, Iterable, Any
 from contextlib import contextmanager
 
 
@@ -45,7 +45,7 @@ class ThreadsafeDatabase:
             use_self_cursor=False,
             commit=False,
             acquire_lock=True
-    ) -> Optional[sqlite3.Cursor]:
+    ) -> sqlite3.Cursor:
 
         with conditional_lock(self.lock, acquire_lock):
             if use_self_cursor:
@@ -103,7 +103,7 @@ class ThreadsafeDatabase:
             use_self_cursor=False,
             commit=False,
             acquire_lock=True
-    ) -> Optional[sqlite3.Cursor]:
+    ) -> sqlite3.Cursor:
 
         with conditional_lock(self.lock, acquire_lock):
             if use_self_cursor:

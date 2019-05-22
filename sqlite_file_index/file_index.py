@@ -142,7 +142,7 @@ class FileIndex:
                 cache[parent] = cursor.lastrowid
                 return cursor.lastrowid
 
-    def add_paths(self, paths: Iterable[Path], recursive=True):
+    def add_paths(self, paths: Iterable[Path], recursive=True, yield_paths=False):
         with self.db.lock:
             parent_cache = dict()
             cursor = self.db.connection.cursor()
@@ -181,6 +181,9 @@ class FileIndex:
                     if recursive:
                         stack.push(path.iterdir())
                         parent_cache[path] = cursor.lastrowid
+
+                if yield_paths:
+                    yield path
 
             retry_while_locked(self.connection.commit)
 
