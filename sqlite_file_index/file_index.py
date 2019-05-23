@@ -151,6 +151,9 @@ class FileIndex:
             stack.push(paths)
 
             for path in stack:  # type: Path
+                if yield_paths:
+                    yield path
+
                 parent_id = self.__get_parent_id(
                     path, cursor, parent_cache
                 )
@@ -182,9 +185,6 @@ class FileIndex:
                     if recursive:
                         stack.push(path.iterdir())
                         parent_cache[path] = cursor.lastrowid
-
-                if yield_paths:
-                    yield path
 
             retry_while_locked(self.connection.commit)
 
