@@ -142,7 +142,7 @@ class FileIndex:
                 cache[parent] = cursor.lastrowid
                 return cursor.lastrowid
 
-    def add_paths(self, paths: Iterable[Path], recursive=True, yield_paths=False):
+    def add_paths(self, paths: Iterable[Path], recursive=True, yield_paths=False, rescan=False):
         with self.db.lock:
             parent_cache = dict()
             cursor = self.db.connection.cursor()
@@ -176,7 +176,8 @@ class FileIndex:
                         )
 
                     except sqlite3.IntegrityError:
-                        continue
+                        if not rescan:
+                            continue
 
                     if recursive:
                         stack.push(path.iterdir())
