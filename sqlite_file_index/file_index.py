@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
 from .iterator_stack import IteratorStack
+from .optional_generator import optional_generator
 
 
 class FileIndexNode:
@@ -114,7 +115,7 @@ class FileIndex:
         return result
 
     def __get_parent_id(self, path: Path, cursor: sqlite3.Cursor, cache: dict):
-        parent = path.parent
+        parent: Path = path.parent
 
         try:
             return cache[parent]
@@ -124,7 +125,7 @@ class FileIndex:
                 cache[parent] = None
                 return None
 
-            parent_node = self.get_folder_node_by_path(path, acquire_lock=False)
+            parent_node = self.get_folder_node_by_path(parent, acquire_lock=False)
 
             if parent_node:
                 cache[parent] = parent_node.id
@@ -142,7 +143,15 @@ class FileIndex:
                 cache[parent] = cursor.lastrowid
                 return cursor.lastrowid
 
-    def add_paths(self, paths: Iterable[Path], recursive=True, yield_paths=False, rescan=False):
+    @optional_generator
+    def add_paths(
+            self,
+            paths: Iterable[Path],
+            recursive=True,
+            yield_paths=False,
+            # yield_nodes=False,
+            rescan=False
+    ):
         with self.db.lock:
             parent_cache = dict()
             cursor = self.db.connection.cursor()
@@ -190,29 +199,29 @@ class FileIndex:
 
     def get_file_node_by_id(self, file_id, acquire_lock=False) -> Optional[FileIndexNode]:
         for row in self.db.execute(
-                'select * from files where id=?', (file_id,),
-                use_self_cursor=True, acquire_lock=acquire_lock
+            'select * from files where id=?', (file_id,),
+            use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
     def get_folder_node_by_id(self, folder_id, acquire_lock=False) -> Optional[FileIndexNode]:
         for row in self.db.execute(
-                'select * from folders where id=?', (folder_id,),
-                use_self_cursor=True, acquire_lock=acquire_lock
+            'select * from folders where id=?', (folder_id,),
+            use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
     def get_file_node_by_path(self, path: Path, acquire_lock=False) -> Optional[FileIndexNode]:
         for row in self.db.execute(
-                'select * from files where path=?', (str(path),),
-                use_self_cursor=True, acquire_lock=acquire_lock
+            'select * from files where path=?', (str(path),),
+            use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
     def get_folder_node_by_path(self, path: Path, acquire_lock=False) -> Optional[FileIndexNode]:
         for row in self.db.execute(
-                'select * from folders where path=?', (str(path),),
-                use_self_cursor=True, acquire_lock=acquire_lock
+            'select * from folders where path=?', (str(path),),
+            use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
@@ -220,17 +229,31 @@ class FileIndex:
         self.db.execute('vacuum')
 
     def search(self, keyword, yield_folders=False):
+        keyword = f'%{keyword}%'
+
         if yield_folders:
-            folders = self.db.execute(
-                'select * from folders where '
-                'path like ? order by path collate nocase asc', (f'%{keyword}%',)
+            items = self.db.execute(
+                'select * from folders where path like ? '
+                'union all '
+                'select * from files where path like ? '
+                'order by path collate nocase asc;',
+                (keyword, keyword)
+            )
+        else:
+            items = self.db.execute(
+                'select * from files where path like ? '
+                'order by path collate nocase asc',
+                (keyword,)
             )
 
-            yield from map(lambda row: FileIndexNode(self, row), folders)
+        yield from map(lambda row: FileIndexNode(self, row), items)
 
-        files = self.db.execute(
-            'select * from files where '
-            'path like ? order by path collate nocase asc', (f'%{keyword}%',)
+    def get_root_nodes(self):
+        items = self.db.execute(
+            'select * from folders where parent is null '
+            'union all '
+            'select * from files where parent is null '
+            'order by path collate nocase asc'
         )
 
-        yield from map(lambda row: FileIndexNode(self, row), files)
+        yield from map(lambda row: FileIndexNode(self, row), items)
