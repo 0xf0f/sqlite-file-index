@@ -106,9 +106,11 @@ class FileIndex:
                         if not rescan:
                             continue
 
+                    else:
+                        parent_cache[path] = cursor.lastrowid
+
                     if recursive:
                         stack.push(path.iterdir())
-                        parent_cache[path] = cursor.lastrowid
 
             retry_while_locked(self.connection.commit)
 
