@@ -15,7 +15,7 @@ class FileIndex:
     db: ThreadsafeDatabase
 
     @classmethod
-    def load_from(cls, path):
+    def load_from(cls, path: Union[Path, str]):
         result = cls()
         result.connection = sqlite3.Connection(path, check_same_thread=False)
         result.connection.execute('pragma foreign_keys=on;')
@@ -24,7 +24,7 @@ class FileIndex:
         return result
 
     @classmethod
-    def create_new(cls, path):
+    def create_new(cls, path: Union[Path, str]):
         result = cls.load_from(path)
         with open(create_index_script) as script:
             result.db.execute_script(script.read())
@@ -129,14 +129,14 @@ class FileIndex:
         ):
             return FileIndexNode(self, row)
 
-    def get_file_node_by_path(self, path: Path, acquire_lock=False) -> Optional[FileIndexNode]:
+    def get_file_node_by_path(self, path: Union[Path, str], acquire_lock=False) -> Optional[FileIndexNode]:
         for row in self.db.execute(
             'select * from files where path=?', (str(path),),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
-    def get_folder_node_by_path(self, path: Path, acquire_lock=False) -> Optional[FileIndexNode]:
+    def get_folder_node_by_path(self, path: Union[Path, str], acquire_lock=False) -> Optional[FileIndexNode]:
         for row in self.db.execute(
             'select * from folders where path=?', (str(path),),
             use_self_cursor=True, acquire_lock=acquire_lock
