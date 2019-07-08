@@ -25,28 +25,8 @@ class FileIndex:
     @classmethod
     def create_new(cls, path):
         result = cls.load_from(path)
-        result.db.execute_script(
-            'pragma journal_mode=wal;'
-            'pragma foreign_keys=ON;'
-            'drop table if exists files;'
-            'drop table if exists folders;'
-            
-            'create table folders('
-                'id integer primary key,'
-                'path text,'
-                'parent integer,'
-                'constraint unique_path unique (path)'
-                'foreign key (parent) references folders(id) on delete cascade'
-            ');'
-
-            'create table files ('
-                'id integer primary key,'
-                'path text,'
-                'parent integer,'
-                'constraint unique_path unique (path)'
-                'foreign key (parent) references folders(id) on delete cascade'
-            ');'
-        )
+        with open(create_index_script) as script:
+            result.db.execute_script(script.read())
         return result
 
     def __get_parent_id(self, path: Path, cursor: sqlite3.Cursor, cache: dict):
