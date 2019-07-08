@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union
 from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
 from .iterator_stack import IteratorStack
 from .optional_generator import optional_generator
@@ -62,7 +62,7 @@ class FileIndex:
     @optional_generator
     def add_paths(
             self,
-            paths: Iterable[Path],
+            paths: Iterable[Union[Path, str]],
             recursive=True,
             yield_paths=False,
             # yield_nodes=False,
@@ -73,7 +73,7 @@ class FileIndex:
             cursor = self.db.connection.cursor()
 
             stack = IteratorStack()
-            stack.push(paths)
+            stack.push(map(Path, paths))
 
             for path in stack:  # type: Path
                 if yield_paths:
