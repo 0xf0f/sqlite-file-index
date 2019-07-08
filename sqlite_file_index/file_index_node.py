@@ -1,9 +1,10 @@
 from typing import TYPE_CHECKING
-from pathlib import  Path
+from pathlib import Path
 
 if TYPE_CHECKING:
     from .file_index import FileIndex
     import sqlite3
+
 
 class FileIndexNode:
     def __init__(self, file_index: 'FileIndex', row: 'sqlite3.Row'):
