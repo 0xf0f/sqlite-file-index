@@ -47,7 +47,7 @@ for node in file_index.search('.txt'):
 ```python
 # Searching a specific folder:
 folder_node = file_index.get_folder_node_by_path(
-    r'C:\Desktop'
+    r'C:\Users\admin\Desktop'
 )
 
 if folder_node:
@@ -67,7 +67,7 @@ for node in file_index.get_root_nodes():
 ```python
 # Stepping through a specific folder:
 folder_node = file_index.get_folder_node_by_path(
-    r'C:\Desktop'
+    r'C:\Users\admin\Desktop'
 )
 
 if folder_node:
