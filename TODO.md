@@ -4,3 +4,5 @@
 	
 - set up ways to turn file index functions into tasks i.e. by
 	yielding values as iteration points.
+	
+- add glob support for searching
