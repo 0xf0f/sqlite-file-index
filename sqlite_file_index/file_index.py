@@ -1,78 +1,13 @@
 import sqlite3
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union
 from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
 from .iterator_stack import IteratorStack
 from .optional_generator import optional_generator
+from .file_index_node import FileIndexNode
 
-
-class FileIndexNode:
-    def __init__(self, file_index: 'FileIndex', row: sqlite3.Row):
-        self.file_index: 'FileIndex' = file_index
-
-        self.id = row['id']
-        self.path = Path(row['path'])
-        self.parent = row['parent']
-
-    def sub_node(self, row):
-        return FileIndexNode(self.file_index, row)
-
-    def search(self, keyword, recursive=False):
-        if recursive:
-            items = self.file_index.db.execute(
-                f'''
-                with recursive subfolders(_id) as (
-                    values(?)
-                    union all select id from folders, subfolders where parent=_id
-                )
-
-                select * from files where parent in subfolders and path like ?
-                order by path collate nocase asc;
-                ''', (self.id, f'%{keyword}%')
-            )
-
-            yield from map(self.sub_node, items)
-
-        else:
-            files = self.file_index.db.execute(
-                'select * from files where parent=? and ' 
-                'path like ? order by path asc', (self.id, f'%{keyword}%')
-            )
-
-            yield from map(self.sub_node, files)
-
-    def iterdir(self, recursive=False):
-        if recursive:
-            items = self.file_index.db.execute(
-                f'''
-                with recursive subfolders(_id) as (
-                    values(?)
-                    union all select id from folders, subfolders where parent=_id
-                )
-    
-                select * from folders where parent in subfolders
-                union all
-                select * from files where parent in subfolders
-                order by path collate nocase asc;
-                ''', (self.id,)
-            )
-
-            yield from map(self.sub_node, items)
-
-        else:
-            yield from self
-
-    def __iter__(self):
-        items = self.file_index.db.execute(
-            f'''
-            select * from folders where parent=?
-            union all
-            select * from files where parent=?
-            order by path collate nocase asc;
-            ''', (self.id, self.id)
-        )
-
-        yield from map(self.sub_node, items)
+cd = Path(__file__).parent
+create_index_script = cd/'create_index.sqlite'
 
 
 class FileIndex:
@@ -80,39 +15,28 @@ class FileIndex:
     db: ThreadsafeDatabase
 
     @classmethod
-    def load_from(cls, path):
+    def load_from(cls, path: Union[Path, str]):
         result = cls()
         result.connection = sqlite3.Connection(path, check_same_thread=False)
+        result.connection.execute('pragma foreign_keys=on;')
         result.connection.row_factory = sqlite3.Row
         result.db = ThreadsafeDatabase(result.connection)
         return result
 
     @classmethod
-    def create_new(cls, path):
+    def create_new(cls, path: Union[Path, str]):
         result = cls.load_from(path)
-        result.db.execute_script(
-            'pragma journal_mode=wal;'
-            'pragma foreign_keys=ON;'
-            'drop table if exists files;'
-            'drop table if exists folders;'
-            
-            'create table folders('
-                'id integer primary key,'
-                'path text,'
-                'parent integer,'
-                'constraint unique_path unique (path)'
-                'foreign key (parent) references folders(id) on delete cascade'
-            ');'
-
-            'create table files ('
-                'id integer primary key,'
-                'path text,'
-                'parent integer,'
-                'constraint unique_path unique (path)'
-                'foreign key (parent) references folders(id) on delete cascade'
-            ');'
-        )
+        with open(create_index_script) as script:
+            result.db.execute_script(script.read())
         return result
+
+    @classmethod
+    def load_or_create(cls, path: Union[Path, str]):
+        path = Path(path)
+        if path.exists():
+            return cls.load_from(path)
+        else:
+            return cls.create_new(path)
 
     def __get_parent_id(self, path: Path, cursor: sqlite3.Cursor, cache: dict):
         parent: Path = path.parent
@@ -146,7 +70,7 @@ class FileIndex:
     @optional_generator
     def add_paths(
             self,
-            paths: Iterable[Path],
+            paths: Iterable[Union[Path, str]],
             recursive=True,
             yield_paths=False,
             # yield_nodes=False,
@@ -157,7 +81,7 @@ class FileIndex:
             cursor = self.db.connection.cursor()
 
             stack = IteratorStack()
-            stack.push(paths)
+            stack.push(map(Path, paths))
 
             for path in stack:  # type: Path
                 if yield_paths:
@@ -191,9 +115,11 @@ class FileIndex:
                         if not rescan:
                             continue
 
+                    else:
+                        parent_cache[path] = cursor.lastrowid
+
                     if recursive:
                         stack.push(path.iterdir())
-                        parent_cache[path] = cursor.lastrowid
 
             retry_while_locked(self.connection.commit)
 
@@ -211,14 +137,14 @@ class FileIndex:
         ):
             return FileIndexNode(self, row)
 
-    def get_file_node_by_path(self, path: Path, acquire_lock=False) -> Optional[FileIndexNode]:
+    def get_file_node_by_path(self, path: Union[Path, str], acquire_lock=False) -> Optional[FileIndexNode]:
         for row in self.db.execute(
             'select * from files where path=?', (str(path),),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
-    def get_folder_node_by_path(self, path: Path, acquire_lock=False) -> Optional[FileIndexNode]:
+    def get_folder_node_by_path(self, path: Union[Path, str], acquire_lock=False) -> Optional[FileIndexNode]:
         for row in self.db.execute(
             'select * from folders where path=?', (str(path),),
             use_self_cursor=True, acquire_lock=acquire_lock
