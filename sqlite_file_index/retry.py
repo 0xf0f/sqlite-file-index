@@ -28,8 +28,9 @@ class Retry:
             except self.exception_types as e:
                 for exception_check in self.exception_checks:
                     if exception_check(e):
-                        time.sleep(self.delay_between_tries)
                         tries_remaining -= 1
+                        time.sleep(self.delay_between_tries)
+                        break
                 else:
                     raise e
 
