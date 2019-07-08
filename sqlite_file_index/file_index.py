@@ -30,6 +30,14 @@ class FileIndex:
             result.db.execute_script(script.read())
         return result
 
+    @classmethod
+    def load_or_create(cls, path: Union[Path, str]):
+        path = Path(path)
+        if path.exists():
+            return cls.load_from(path)
+        else:
+            return cls.create_new(path)
+
     def __get_parent_id(self, path: Path, cursor: sqlite3.Cursor, cache: dict):
         parent: Path = path.parent
 
