@@ -18,6 +18,7 @@ class FileIndex:
     def load_from(cls, path):
         result = cls()
         result.connection = sqlite3.Connection(path, check_same_thread=False)
+        result.connection.execute('pragma foreign_keys=on;')
         result.connection.row_factory = sqlite3.Row
         result.db = ThreadsafeDatabase(result.connection)
         return result
