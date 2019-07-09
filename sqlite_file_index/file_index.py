@@ -49,7 +49,9 @@ class FileIndex:
                 cache[parent] = None
                 return None
 
-            parent_node = self.get_folder_node_by_path(parent, acquire_lock=False)
+            parent_node = self.get_folder_node_by_path(
+                parent, acquire_lock=False
+            )
 
             if parent_node:
                 cache[parent] = parent_node.id
@@ -123,28 +125,48 @@ class FileIndex:
 
             retry_while_locked(self.connection.commit)
 
-    def get_file_node_by_id(self, file_id, acquire_lock=False) -> Optional[FileIndexNode]:
+    def get_file_node_by_id(
+            self,
+            file_id,
+            acquire_lock=False
+    ) -> Optional[FileIndexNode]:
+
         for row in self.db.execute(
             'select * from files where id=?', (file_id,),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
-    def get_folder_node_by_id(self, folder_id, acquire_lock=False) -> Optional[FileIndexNode]:
+    def get_folder_node_by_id(
+            self,
+            folder_id,
+            acquire_lock=False
+    ) -> Optional[FileIndexNode]:
+
         for row in self.db.execute(
             'select * from folders where id=?', (folder_id,),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
-    def get_file_node_by_path(self, path: Union[Path, str], acquire_lock=False) -> Optional[FileIndexNode]:
+    def get_file_node_by_path(
+            self,
+            path: Union[Path, str],
+            acquire_lock=False
+    ) -> Optional[FileIndexNode]:
+
         for row in self.db.execute(
             'select * from files where path=?', (str(path),),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
             return FileIndexNode(self, row)
 
-    def get_folder_node_by_path(self, path: Union[Path, str], acquire_lock=False) -> Optional[FileIndexNode]:
+    def get_folder_node_by_path(
+            self,
+            path: Union[Path, str],
+            acquire_lock=False
+    ) -> Optional[FileIndexNode]:
+
         for row in self.db.execute(
             'select * from folders where path=?', (str(path),),
             use_self_cursor=True, acquire_lock=acquire_lock
