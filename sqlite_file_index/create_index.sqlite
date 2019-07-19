@@ -3,13 +3,13 @@ pragma journal_mode=wal;
 drop table if exists files;
 drop table if exists folders;
 
-create table folders(
+create table folders (
 	id integer primary key,
 	path text,
 	parent integer,
 	constraint unique_path unique (path)
 	foreign key (parent) references folders(id) on delete cascade
-);'
+);
 
 create table files (
 	id integer primary key,
