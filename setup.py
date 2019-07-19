@@ -4,7 +4,7 @@ setup(
     name='sqlite-file-index',
     version='1.3',
     packages=find_packages(),
-    url='',
+    url='https://github.com/0xf0f/sqlite-file-index',
     license='MIT',
     author='0xf0f',
     author_email='',
