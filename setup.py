@@ -8,5 +8,5 @@ setup(
     license='MIT',
     author='0xf0f',
     author_email='',
-    description=''
+    description='Hierarchical file index in an sqlite database.'
 )
