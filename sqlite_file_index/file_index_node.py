@@ -1,5 +1,6 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable, Optional, Union, Dict
 from pathlib import Path
+from .threadsafe_db import retry_while_locked
 
 if TYPE_CHECKING:
     from .file_index import FileIndex
@@ -76,3 +77,63 @@ class FileIndexNode:
         )
 
         yield from map(self.file_index.new_node, items)
+
+    def get_metadata(
+            self,
+            columns: Iterable[str] = None
+    ) -> Optional[dict]:
+
+        if self.path.is_dir():
+            type = 'folder'
+        else:
+            type = 'file'
+
+        if columns:
+            column_string = ', '.join(columns)
+        else:
+            column_string = '*'
+
+        print(self.id, type, column_string)
+
+        for row in self.file_index.db.execute(
+                f'select {column_string} from {type}_metadata where id=?',
+                (self.id,)
+        ):
+            return dict(row)
+
+    def set_metadata(
+            self,
+            columns: Dict[str, Union[str, int, float]],
+    ):
+        if columns:
+            if self.path.is_file():
+                type = 'file'
+            else:
+                type = 'folder'
+
+            set_string = ', '.join(
+                f'{key}=?' for key in columns.keys()
+            )
+
+            cursor = retry_while_locked(
+                self.file_index.db.execute,
+                f'update {type}_metadata set {set_string} where id={self.id}',
+                tuple(columns.values())
+            )
+
+            print('rowcount:', cursor.rowcount)
+            if not cursor.rowcount:
+                column_string = ', '.join(columns.keys())
+                param_string = ', '.join('?'*len(columns))
+                # print(column_string, param_string)
+
+                retry_while_locked(
+                    self.file_index.db.execute,
+                    f'insert into {type}_metadata(id, {column_string}) '
+                    f'values (?, {param_string})',
+                    (self.id, *columns.values())
+                )
+
+            self.file_index.db.commit()
+
+            print('done')
