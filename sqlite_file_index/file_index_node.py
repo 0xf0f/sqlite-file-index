@@ -137,3 +137,6 @@ class FileIndexNode:
             self.file_index.db.commit()
 
             print('done')
+
+    def __str__(self):
+        return f'{self.__class__.__qualname__} ({self.path})'
