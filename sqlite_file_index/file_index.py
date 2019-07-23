@@ -1,10 +1,12 @@
 import sqlite3
+
 from pathlib import Path
-from typing import Iterable, Optional, Union
-from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
+from typing import Iterable, Optional, Union, Type, Dict
+
 from .iterator_stack import IteratorStack
-from .optional_generator import optional_generator
 from .file_index_node import FileIndexNode
+from .optional_generator import optional_generator
+from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
 
 cd = Path(__file__).parent
 create_index_script = cd/'create_index.sqlite'
