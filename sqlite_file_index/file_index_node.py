@@ -14,8 +14,8 @@ class FileIndexNode:
         self.path = Path(row['path'])
         self.parent = row['parent']
 
-    def sub_node(self, row):
-        return FileIndexNode(self.file_index, row)
+    # def sub_node(self, row):
+    #     return self.file_index.new_node(row)
 
     def search(self, keyword, recursive=False):
         if recursive:
@@ -32,7 +32,7 @@ class FileIndexNode:
                 (self.id, f'%{keyword}%')
             )
 
-            yield from map(self.sub_node, items)
+            yield from map(self.file_index.new_node, items)
 
         else:
             files = self.file_index.db.execute(
@@ -41,7 +41,7 @@ class FileIndexNode:
                 (self.id, f'%{keyword}%')
             )
 
-            yield from map(self.sub_node, files)
+            yield from map(self.file_index.new_node, files)
 
     def iterdir(self, recursive=False):
         if recursive:
@@ -60,7 +60,7 @@ class FileIndexNode:
                 (self.id,)
             )
 
-            yield from map(self.sub_node, items)
+            yield from map(self.file_index.new_node, items)
 
         else:
             yield from self
@@ -75,4 +75,4 @@ class FileIndexNode:
             ''', (self.id, self.id)
         )
 
-        yield from map(self.sub_node, items)
+        yield from map(self.file_index.new_node, items)

@@ -13,6 +13,7 @@ create_index_script = cd/'create_index.sqlite'
 class FileIndex:
     connection: sqlite3.Connection
     db: ThreadsafeDatabase
+    node_type: Type[FileIndexNode] = FileIndexNode
 
     @classmethod
     def load_from(cls, path: Union[Path, str]):
@@ -143,7 +144,7 @@ class FileIndex:
             'select * from files where id=?', (file_id,),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
-            return FileIndexNode(self, row)
+            return self.new_node(row)
 
     def get_folder_node_by_id(
             self,
@@ -155,7 +156,7 @@ class FileIndex:
             'select * from folders where id=?', (folder_id,),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
-            return FileIndexNode(self, row)
+            return self.new_node(row)
 
     def get_file_node_by_path(
             self,
@@ -167,7 +168,7 @@ class FileIndex:
             'select * from files where path=?', (str(path),),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
-            return FileIndexNode(self, row)
+            return self.new_node(row)
 
     def get_folder_node_by_path(
             self,
@@ -179,7 +180,7 @@ class FileIndex:
             'select * from folders where path=?', (str(path),),
             use_self_cursor=True, acquire_lock=acquire_lock
         ):
-            return FileIndexNode(self, row)
+            return self.new_node(row)
 
     def vacuum(self):
         self.db.execute('vacuum')
@@ -202,7 +203,7 @@ class FileIndex:
                 (keyword,)
             )
 
-        yield from map(lambda row: FileIndexNode(self, row), items)
+        yield from map(self.new_node, items)
 
     def get_root_nodes(self):
         items = self.db.execute(
@@ -212,4 +213,7 @@ class FileIndex:
             'order by path collate nocase asc'
         )
 
-        yield from map(lambda row: FileIndexNode(self, row), items)
+        yield from map(self.new_node, items)
+
+    def new_node(self, row: sqlite3.Row):
+        return self.node_type(self, row)
