@@ -20,7 +20,7 @@ class FileIndexNode:
     def search(self, keyword, recursive=False):
         if recursive:
             items = self.file_index.db.execute(
-                f'''
+                '''
                 with recursive subfolders(_id) as (
                     values(?)
                     union all select id from folders, subfolders where parent=_id
@@ -46,7 +46,7 @@ class FileIndexNode:
     def iterdir(self, recursive=False):
         if recursive:
             items = self.file_index.db.execute(
-                f'''
+                '''
                 with recursive subfolders(_id) as (
                     values(?)
                     union all select id from folders, subfolders where parent=_id
@@ -67,7 +67,7 @@ class FileIndexNode:
 
     def __iter__(self):
         items = self.file_index.db.execute(
-            f'''
+            '''
             select * from folders where parent=?
             union all
             select * from files where parent=?
