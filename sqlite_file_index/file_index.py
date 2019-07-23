@@ -39,6 +39,14 @@ class FileIndex:
             return cls.create_new(path)
 
     def __get_parent_id(self, path: Path, cursor: sqlite3.Cursor, cache: dict):
+    def save_as(self, path: Union[Path, str]):
+        path = Path(path)
+        with self.db.lock:
+            with sqlite3.connect(path) as backup:
+                self.db.connection.backup(
+                    backup
+                )
+
         parent: Path = path.parent
 
         try:
