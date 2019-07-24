@@ -325,9 +325,9 @@ class FileIndex:
 
     # def add_file_metadata_column(self, name, type):
     #     self.db.execute(
-    #         'alter table '
+    #         'alter table file_metadata add column ? ?',
+    #         (type,)
     #     )
     #
-    #     self.file_metadata_columns[name] = type
-    #
     # def add_folder_metadata_column(self, name, type):
+    #     pass
