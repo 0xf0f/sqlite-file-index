@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Iterable, Optional, Union, Dict
 from pathlib import Path
-from .threadsafe_db import retry_while_locked
 
 if TYPE_CHECKING:
     from .file_index import FileIndex
@@ -115,8 +114,7 @@ class FileIndexNode:
                 f'{key}=?' for key in columns.keys()
             )
 
-            cursor = retry_while_locked(
-                self.file_index.db.execute,
+            cursor = self.file_index.db.execute(
                 f'update {type}_metadata set {set_string} where id={self.id}',
                 tuple(columns.values())
             )
@@ -125,8 +123,7 @@ class FileIndexNode:
                 column_string = ', '.join(columns.keys())
                 param_string = ', '.join('?'*len(columns))
 
-                retry_while_locked(
-                    self.file_index.db.execute,
+                self.file_index.db.execute(
                     f'insert into {type}_metadata(id, {column_string}) '
                     f'values (?, {param_string})',
                     (self.id, *columns.values())
