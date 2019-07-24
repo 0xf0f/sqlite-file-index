@@ -121,11 +121,9 @@ class FileIndexNode:
                 tuple(columns.values())
             )
 
-            print('rowcount:', cursor.rowcount)
             if not cursor.rowcount:
                 column_string = ', '.join(columns.keys())
                 param_string = ', '.join('?'*len(columns))
-                # print(column_string, param_string)
 
                 retry_while_locked(
                     self.file_index.db.execute,
@@ -135,8 +133,6 @@ class FileIndexNode:
                 )
 
             self.file_index.db.commit()
-
-            print('done')
 
     def __str__(self):
         return f'{self.__class__.__qualname__} ({self.path})'
