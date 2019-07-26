@@ -20,6 +20,10 @@ in media applications, quickly searching through them).
     
 
 ### Installation
+`pip install sqlite-file-index`
+
+Or to install latest version from this repo:
+
 `pip install git+https://github.com/0xf0f/sqlite-file-index`
 
 ### Examples
