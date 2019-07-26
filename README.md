@@ -100,3 +100,42 @@ if folder_node:
     for node in folder_node.iterdir(recursive=True):
         print(node)
 ```
+
+##### Metadata
+```python
+from sqlite_file_index import FileIndex
+from sqlite_file_index import FileIndexNode
+from typing import Optional
+import soundfile as sf
+
+class AudioFileIndexNode(FileIndexNode):
+    @property
+    def duration(self) -> Optional[float]:
+        try:
+            return self.get_metadata()['duration']
+        except KeyError:
+            return None
+    
+    @duration.setter
+    def duration(self, value: float):
+        self.set_metadata(
+            {'duration': value}
+        )
+
+class AudioFileIndex(FileIndex[AudioFileIndexNode]):
+    node_type = AudioFileIndexNode
+
+    file_metadata_columns = {
+        'duration': 'real'
+    }
+    
+    def initial_file_metadata(self, path):
+        try:
+            with sf.SoundFile(path) as file:
+                return {
+                    'duration': file.frames/file.samplerate,
+                }
+        
+        except Exception:
+            pass
+```
