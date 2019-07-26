@@ -1,7 +1,23 @@
 ### Introduction
-- Creates a hierarchical file index in an sqlite database for fast searching and navigation.
-- All nodes are mapped to objects for ease of use.
-- Threadsafe and process-safe.
+A module for managing a hierarchical database of 
+files and folders. An example application could be for storing media 
+libraries (e.g. keeping track of a large number of audio and video files 
+in media applications, quickly searching through them).
+
+### Features
+- Fast searching and navigation:
+
+- All nodes are mapped to objects for ease of use:
+    - Object Oriented API for intuitive usage and easy integration into
+    existing projects.
+    
+- Threadsafe and process-safe:
+    - File indexes are able to be used simultaneously across multiple
+    threads and processes without locking errors.
+    
+- Custom metadata columns:
+    - Able to define custom metadata columns for files and folders and
+    
 
 ### Installation
 `pip install git+https://github.com/0xf0f/sqlite-file-index`
