@@ -1,7 +1,7 @@
 import sqlite3
 
 from pathlib import Path
-from typing import Iterable, Optional, Union, Type, Dict
+from typing import Iterable, Optional, Union, Type, Dict, TypeVar, Generic
 
 from .iterator_stack import IteratorStack
 from .file_index_node import FileIndexNode
@@ -11,8 +11,10 @@ from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
 cd = Path(__file__).parent
 create_index_script = cd/'create_index.sqlite'
 
+NodeType = TypeVar('NodeType', bound=FileIndexNode)
 
-class FileIndex:
+
+class FileIndex(Generic[NodeType]):
     connection: sqlite3.Connection
     db: ThreadsafeDatabase
     node_type: Type[FileIndexNode] = FileIndexNode
@@ -233,7 +235,7 @@ class FileIndex:
             self,
             file_id,
             acquire_lock=False
-    ) -> Optional[FileIndexNode]:
+    ) -> Optional[NodeType]:
 
         for row in self.db.execute(
             'select * from files where id=?', (file_id,),
@@ -245,7 +247,7 @@ class FileIndex:
             self,
             folder_id,
             acquire_lock=False
-    ) -> Optional[FileIndexNode]:
+    ) -> Optional[NodeType]:
 
         for row in self.db.execute(
             'select * from folders where id=?', (folder_id,),
@@ -257,7 +259,7 @@ class FileIndex:
             self,
             path: Union[Path, str],
             acquire_lock=False
-    ) -> Optional[FileIndexNode]:
+    ) -> Optional[NodeType]:
 
         for row in self.db.execute(
             'select * from files where path=?', (str(path),),
@@ -269,7 +271,7 @@ class FileIndex:
             self,
             path: Union[Path, str],
             acquire_lock=False
-    ) -> Optional[FileIndexNode]:
+    ) -> Optional[NodeType]:
 
         for row in self.db.execute(
             'select * from folders where path=?', (str(path),),
@@ -310,7 +312,7 @@ class FileIndex:
 
         yield from map(self.new_node, items)
 
-    def new_node(self, row: sqlite3.Row):
+    def new_node(self, row: sqlite3.Row) -> NodeType:
         return self.node_type(self, row)
 
     def initial_folder_metadata(
