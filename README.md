@@ -34,6 +34,12 @@ from sqlite_file_index import FileIndex
 file_index = FileIndex.load_or_create('index.db')
 ```
 
+##### Saving
+```python
+file_index = FileIndex.create_new(':memory:')
+file_index.save_as('dump.db')
+```
+
 ##### Indexing
 ```python
 # Adding entire directories to the index:
