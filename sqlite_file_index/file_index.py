@@ -56,7 +56,7 @@ class FileIndex(Generic[NodeType]):
         return result
 
     @classmethod
-    def create_new(cls, path: Union[Path, str]):
+    def create_new(cls, path: Union[Path, str] = ':memory:'):
         result = cls.load_from(path, load_metadata_columns=False)
         with open(create_index_script) as script:
             result.db.execute_script(script.read())
