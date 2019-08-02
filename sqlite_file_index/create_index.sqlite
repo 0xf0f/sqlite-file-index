@@ -5,6 +5,8 @@ drop table if exists folders;
 drop table if exists file_metadata;
 drop table if exists folder_metadata;
 
+-------------------------------------------------------------------------
+
 create table folders (
 	id integer primary key,
 	path text,
@@ -20,6 +22,54 @@ create table files (
 	constraint unique_path unique (path)
 	foreign key (parent) references folders(id) on delete cascade
 );
+
+-------------------------------------------------------------------------
+
+create virtual table folder_paths using fts5 (
+    path,
+    content=folders, content_rowid=id
+);
+
+create virtual table file_paths using fts5 (
+    path,
+    content=files, content_rowid=id
+);
+
+create trigger folder_paths_add after insert on folders begin
+    insert into folder_paths(rowid, path)
+    values (new.id, new.path);
+end;
+
+create trigger folder_paths_delete after delete on folders begin
+    insert into folder_paths(folder_paths, rowid, path)
+    values ('delete', old.id, old.path);
+end;
+
+create trigger folder_paths_update after update on folders begin
+    insert into folder_paths(folder_paths, rowid, path)
+    values ('delete', old.id, old.path);
+    insert into folder_paths(rowid, path)
+    values (new.id, new.path);
+end;
+
+create trigger file_paths_add after insert on files begin
+    insert into file_paths(rowid, path)
+    values (new.id, new.path);
+end;
+
+create trigger file_paths_delete after delete on files begin
+    insert into file_paths(file_paths, rowid, path)
+    values ('delete', old.id, old.path);
+end;
+
+create trigger file_paths_update after update on files begin
+    insert into file_paths(file_paths, rowid, path)
+    values ('delete', old.id, old.path);
+    insert into file_paths(rowid, path)
+    values (new.id, new.path);
+end;
+
+-------------------------------------------------------------------------
 
 create table folder_metadata (
     id integer,
