@@ -6,7 +6,7 @@ in media applications, quickly searching through them).
 
 ### Features
 - Fast searching and navigation:
-    - Uses sqlite's text matching to quickly search through
+    - Uses sqlite's pattern matching to quickly search through
     paths for keywords.
     - Uses recursive queries for navigating and searching through
     individual folders.
