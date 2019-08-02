@@ -1,11 +1,15 @@
 ### Introduction
 A module for managing a hierarchical database of 
-files and folders. An example application could be for storing media 
+files and folders. An example application could be for handling media 
 libraries (e.g. keeping track of a large number of audio and video files 
 in media applications, quickly searching through them).
 
 ### Features
 - Fast searching and navigation:
+    - Uses sqlite's text matching to quickly search through
+    paths for keywords.
+    - Uses recursive queries for navigating and searching through
+    individual folders.
 
 - All nodes are mapped to objects for ease of use:
     - Object Oriented API for intuitive usage and easy integration into
@@ -16,13 +20,18 @@ in media applications, quickly searching through them).
     threads and processes without locking errors.
     
 - Custom metadata columns:
-    - Able to define custom metadata columns for files and folders and
-    
+    - Able to define custom metadata columns for files and folders, then
+    specify how they should be populated as paths are added to the index.
+
+- Extended query API:
+    - An object oriented query API for more robust searches based on
+    metadata, paths, glob matching, etc, plus sorting and ordering 
+    results.
 
 ### Installation
 `pip install sqlite-file-index`
 
-Or to install latest version from this repo:
+Or to install latest version from github:
 
 `pip install git+https://github.com/0xf0f/sqlite-file-index`
 
