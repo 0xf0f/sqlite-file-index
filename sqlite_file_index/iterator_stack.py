@@ -2,8 +2,8 @@ class IteratorStack:
     def __init__(self):
         self.stack = []
 
-    def push(self, iterator):
-        self.stack.append(iter(iterator))
+    def push(self, iterable):
+        self.stack.append(iter(iterable))
 
     def pop(self):
         return self.stack.pop()
