@@ -2,8 +2,13 @@ pragma journal_mode=wal;
 
 drop table if exists files;
 drop table if exists folders;
+
 drop table if exists file_metadata;
 drop table if exists folder_metadata;
+
+drop table if exists tags;
+drop table if exists folder_tags;
+drop table if exists file_tags;
 
 create table folders (
 	id integer primary key,
@@ -29,4 +34,23 @@ create table folder_metadata (
 create table file_metadata (
     id integer,
     foreign key (id) references files(id) on delete cascade
+);
+
+create table tags (
+    id integer primary key,
+    name text
+);
+
+create table folder_tags (
+    tag_id integer,
+    folder_id integer,
+    foreign key (tag_id) references tags(id) on delete cascade
+    foreign key (folder_id) references folders(id) on delete cascade
+);
+
+create table file_tags (
+    tag_id integer,
+    file_id integer,
+    foreign key (tag_id) references tags(id) on delete cascade
+    foreign key (file_id) references files(id) on delete cascade
 );
