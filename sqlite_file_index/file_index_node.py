@@ -17,7 +17,7 @@ class FileIndexNode:
     # def sub_node(self, row):
     #     return self.file_index.new_node(row)
 
-    def search(self, keyword, recursive=False):
+    def search_like(self, keyword, recursive=False):
         if recursive:
             items = self.file_index.db.execute(
                 '''
@@ -25,7 +25,6 @@ class FileIndexNode:
                     values(?)
                     union all select id from folders, subfolders where parent=_id
                 )
-
                 select * from files where parent in subfolders and path like ?
                 order by path collate nocase asc;
                 ''',
@@ -39,6 +38,41 @@ class FileIndexNode:
                 'select * from files where parent=? and '
                 'path like ? order by path asc',
                 (self.id, f'%{keyword}%')
+            )
+
+            yield from map(self.file_index.new_node, files)
+
+    def search_fts(self, keyword, recursive=False):
+        if recursive:
+            items = self.file_index.db.execute(
+                '''
+                with recursive subfolders(_id) as (
+                    values(?)
+                    union all select id from folders, subfolders where parent=_id
+                )
+
+                select * from files where 
+                parent in subfolders and 
+                id in 
+                (
+                    select rowid from file_paths where path match ?
+                )
+                order by path collate nocase asc;
+                ''',
+                (self.id, f'{keyword}*')
+            )
+
+            yield from map(self.file_index.new_node, items)
+
+        else:
+            files = self.file_index.db.execute(
+                'select * from files where parent=? and '
+                'id in'
+                '('
+                '   select rowid from file_paths where path match ?'
+                ')'
+                'order by path collate nocase asc',
+                (self.id, keyword)
             )
 
             yield from map(self.file_index.new_node, files)
@@ -76,6 +110,17 @@ class FileIndexNode:
         )
 
         yield from map(self.file_index.new_node, items)
+
+    def delete(self):
+        if self.path.is_dir():
+            self.file_index.db.execute(
+                'delete from folders where id=?', (self.id,)
+            )
+
+        else:
+            self.file_index.db.execute(
+                'delete from files where id=?', (self.id,)
+            )
 
     def get_metadata(
             self,
@@ -133,3 +178,6 @@ class FileIndexNode:
 
     def __str__(self):
         return f'{self.__class__.__qualname__} ({self.path})'
+
+    def __hash__(self):
+        return hash(self.path)
