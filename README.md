@@ -1,3 +1,8 @@
+# NOTE
+This branch is abandoned. It ultimately turned out fts is incapable of
+replicating the functionality of `like %keyword%`
+#
+
 ### Introduction
 A module for managing a hierarchical database of 
 files and folders. An example application could be for handling media 
