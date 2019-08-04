@@ -157,3 +157,31 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+.idea/codeStyles/codeStyleConfig.xml
+.idea/codeStyles/Project.xml
+.idea/inspectionProfiles/Project_Default.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/sqlite-file-index.iml
+.idea/vcs.xml
+scrap/fts_kits.db
+scrap/fts_test.db
+scrap/generics_test.py
+scrap/new_test.db
+scrap/stress_test.db
+scrap/stress_test.db-journal
+scrap/tag_test.db
+scrap/test.db
+scrap/test.py
+scrap/test_2.py
+scrap/test_3.py
+scrap/test_4.py
+scrap/test_5.py
+scrap/test_6.py
+scrap/test_7.py
+scrap/test_dump.db
+scrap/test_dump_2.db
+scrap/test_dump_3.db
+scrap/test_dump_4.db
+scrap/test_dump_5.db
+examples/tagging_test.db

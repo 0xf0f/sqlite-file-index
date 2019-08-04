@@ -27,12 +27,12 @@ create table files (
 );
 
 create table folder_metadata (
-    id integer,
+    id integer primary key,
     foreign key (id) references folders(id) on delete cascade
 );
 
 create table file_metadata (
-    id integer,
+    id integer primary key,
     foreign key (id) references files(id) on delete cascade
 );
 
