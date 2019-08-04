@@ -48,6 +48,7 @@ create table folder_tags (
     foreign key (tag_id) references tags(id) on delete cascade
     foreign key (folder_id) references folders(id) on delete cascade
     primary key (tag_id, folder_id)
+) without rowid;
 
 create table file_tags (
     tag_id integer,
@@ -55,3 +56,4 @@ create table file_tags (
     foreign key (tag_id) references tags(id) on delete cascade
     foreign key (file_id) references files(id) on delete cascade
     primary key (tag_id, file_id)
+) without rowid;
