@@ -4,6 +4,7 @@ import sqlite3
 
 if TYPE_CHECKING:
     from .file_index import FileIndex
+    from .file_index_tag import FileIndexTag
 
 
 class FileIndexNode:
@@ -130,6 +131,35 @@ class FileIndexNode:
                 )
 
             self.file_index.db.commit()
+
+    def add_tag(
+            self,
+            tag: Union[str, 'FileIndexTag'],
+            *,
+            commit=True
+    ):
+        if isinstance(tag, str):
+            tag = self.file_index.get_tag(tag)
+
+            if tag is None:
+                raise UserWarning('Tag')
+
+        if self.path.is_dir():
+            path_type = 'folder'
+        else:
+            path_type = 'file'
+
+        try:
+            self.file_index.db.execute(
+                f'insert into {path_type}_tags'
+                f'({path_type}_id, tag_id) '
+                'values (?,?)',
+                (self.id, tag.id),
+                commit=commit
+            )
+
+        except sqlite3.IntegrityError:
+            pass
 
     def __str__(self):
         return f'{self.__class__.__qualname__} ({self.path})'
