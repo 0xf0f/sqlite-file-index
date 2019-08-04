@@ -1,13 +1,13 @@
 from typing import TYPE_CHECKING, Iterable, Optional, Union, Dict
 from pathlib import Path
+import sqlite3
 
 if TYPE_CHECKING:
     from .file_index import FileIndex
-    import sqlite3
 
 
 class FileIndexNode:
-    def __init__(self, file_index: 'FileIndex', row: 'sqlite3.Row'):
+    def __init__(self, file_index: 'FileIndex', row: sqlite3.Row):
         self.file_index: 'FileIndex' = file_index
 
         self.id = row['id']
