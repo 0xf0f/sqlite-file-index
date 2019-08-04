@@ -47,11 +47,11 @@ create table folder_tags (
     folder_id integer,
     foreign key (tag_id) references tags(id) on delete cascade
     foreign key (folder_id) references folders(id) on delete cascade
-);
+    primary key (tag_id, folder_id)
 
 create table file_tags (
     tag_id integer,
     file_id integer,
     foreign key (tag_id) references tags(id) on delete cascade
     foreign key (file_id) references files(id) on delete cascade
-);
+    primary key (tag_id, file_id)
