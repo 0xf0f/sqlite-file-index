@@ -38,7 +38,8 @@ create table file_metadata (
 
 create table tags (
     id integer primary key,
-    name text
+    name text,
+    constraint unique_name unique (name)
 );
 
 create table folder_tags (
