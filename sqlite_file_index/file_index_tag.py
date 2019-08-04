@@ -43,3 +43,7 @@ class FileIndexTag:
             self.index.new_node, rows
         )
 
+    def delete(self):
+        self.index.db.execute(
+            'delete from tags where tag_id=?', (self.id,)
+        )
