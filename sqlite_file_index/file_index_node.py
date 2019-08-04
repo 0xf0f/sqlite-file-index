@@ -161,5 +161,26 @@ class FileIndexNode:
         except sqlite3.IntegrityError:
             pass
 
+    def remove_tag(
+        self,
+        tag: Union[str, 'FileIndexTag'],
+        *,
+        commit=True
+    ):
+        if isinstance(tag, str):
+            tag = self.file_index.get_tag(tag)
+
+        if self.path.is_dir():
+            path_type = 'folder'
+        else:
+            path_type = 'file'
+
+        self.file_index.db.execute(
+            f'delete from {path_type}_tags'
+            f'where tag_id=? and {path_type}_id=?',
+            (self.id, tag.id),
+            commit=commit
+        )
+
     def __str__(self):
         return f'{self.__class__.__qualname__} ({self.path})'
