@@ -107,6 +107,12 @@ class FileIndex(Generic[NodeType]):
                 for index, name in enumerate(result.tags)
             }
 
+        from . import version
+        result.db.execute(
+            'update info set module_version=?',
+            (version,)
+        )
+
         result.connection.commit()
         return result
 
