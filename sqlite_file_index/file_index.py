@@ -382,6 +382,25 @@ class FileIndex(Generic[NodeType]):
 
         yield from map(self.new_node, items)
 
+    def add_tag(self, name) -> FileIndexTag:
+        try:
+            cursor = self.db.execute(
+                'insert into tags (name) values (?)', (name,)
+            )
+
+        except sqlite3.IntegrityError:
+            return self.get_tag(name)
+
+        tag = FileIndexTag(
+            self, {
+                'id': cursor.lastrowid,
+                'name': name,
+            }
+        )
+        self.tags.add(tag.name)
+        self.tag_cache[tag.name] = tag
+        return tag
+
     def new_node(self, row: sqlite3.Row) -> NodeType:
         return self.node_type(self, row)
 
