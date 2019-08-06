@@ -157,3 +157,11 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+.idea/codeStyles/codeStyleConfig.xml
+.idea/codeStyles/Project.xml
+.idea/inspectionProfiles/Project_Default.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/sqlite-file-index.iml
+.idea/vcs.xml
+/scrap/

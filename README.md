@@ -11,7 +11,7 @@ in media applications, quickly searching through them).
     - Uses recursive queries for navigating and searching through
     individual folders.
 
-- All nodes are mapped to objects for ease of use:
+- Object-relational mapping:
     - Object Oriented API for intuitive usage and easy integration into
     existing projects.
     
@@ -19,13 +19,17 @@ in media applications, quickly searching through them).
     - File indexes are able to be used simultaneously across multiple
     threads and processes without locking errors.
     
-- Custom metadata columns:
-    - Able to define custom metadata columns for files and folders, then
+- Metadata:
+    - Define custom metadata columns for files and folders, then
     specify how they should be populated as paths are added to the index.
 
+- Tagging:
+    - Define custom metadata tags/categories for files and folders, then
+    specify how they should be assigned as paths are added to the index.
+
 - Extended query API:
-    - An object oriented query API for more robust searches based on
-    metadata, paths, glob matching, etc, plus sorting and ordering 
+    - An object oriented query API for more robust searches combining
+    metadata, paths, tags, glob matching, etc, plus sorting and ordering 
     results.
 
 ### Installation
@@ -147,4 +151,22 @@ class AudioFileIndex(FileIndex[AudioFileIndexNode]):
         
         except Exception:
             pass
+```
+
+##### Tagging
+```python
+from sqlite_file_index import FileIndex
+
+class AudioFileIndex(FileIndex):
+    tags = {
+        'guitar',
+        'drums'
+    }
+
+    def initial_file_tags(path):
+        path = str(path).lower()
+
+        for tag in self.tags:
+            if tag in paths:
+                yield tag
 ```

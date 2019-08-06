@@ -1,12 +1,17 @@
 import sqlite3
 
 from pathlib import Path
-from typing import Iterable, Optional, Union, Type, Dict, TypeVar, Generic
+from typing import (
+    Iterable, Optional, Union,
+    Type, Dict, TypeVar, Generic,
+    List, Set
+)
 
 from .iterator_stack import IteratorStack
 from .file_index_node import FileIndexNode
+from .file_index_tag import FileIndexTag
 from .optional_generator import optional_generator
-from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
+from .threadsafe_db import ThreadsafeDatabase
 
 cd = Path(__file__).parent
 create_index_script = cd/'create_index.sqlite'
@@ -16,23 +21,29 @@ NodeType = TypeVar('NodeType', bound=FileIndexNode)
 
 class FileIndex(Generic[NodeType]):
     connection: sqlite3.Connection
+    node_cursor: sqlite3.Cursor
     db: ThreadsafeDatabase
     node_type: Type[FileIndexNode] = FileIndexNode
 
     file_metadata_columns: Dict[str, str] = dict()
     folder_metadata_columns: Dict[str, str] = dict()
 
+    tags: Set[str] = set()
+    tag_cache: Dict[str, FileIndexTag] = dict()
+
     @classmethod
     def load_from(
             cls,
             path: Union[Path, str],
             *,
-            load_metadata_columns=True
+            load_metadata_columns=True,
+            load_tags=True,
     ):
         result = cls()
         result.connection = sqlite3.Connection(path, check_same_thread=False)
         result.connection.execute('pragma foreign_keys=on;')
         result.connection.row_factory = sqlite3.Row
+        result.node_cursor = result.connection.cursor()
         result.db = ThreadsafeDatabase(result.connection)
 
         if load_metadata_columns:
@@ -53,23 +64,54 @@ class FileIndex(Generic[NodeType]):
                     row['name']
                 ] = row['type']
 
+        if load_tags:
+            result.tags = list()
+
+            for row in result.db.execute(
+                'select * from tags'
+            ):
+                tag = FileIndexTag(result, row)
+                result.tags.append(tag.name)
+                result.tag_cache[tag.name] = tag
+
         return result
 
     @classmethod
     def create_new(cls, path: Union[Path, str] = ':memory:'):
-        result = cls.load_from(path, load_metadata_columns=False)
+        result = cls.load_from(
+            path,
+            load_metadata_columns=False,
+            load_tags=False,
+        )
+
         with open(create_index_script) as script:
             result.db.execute_script(script.read())
 
-        for name, type in cls.file_metadata_columns.items():
+        for name, type in result.file_metadata_columns.items():
             result.db.execute(
                 f'alter table file_metadata add column {name} {type}'
             )
 
-        for name, type in cls.folder_metadata_columns.items():
+        for name, type in result.folder_metadata_columns.items():
             result.db.execute(
                 f'alter table folder_metadata add column {name} {type}'
             )
+
+        if result.tags:
+            result.db.execute_many(
+                'insert into tags (name) values (?)', [[tag] for tag in result.tags],
+            )
+
+            result.tag_cache = {
+                name: FileIndexTag(result, {'name': name, 'id': index+1})
+                for index, name in enumerate(result.tags)
+            }
+
+        from . import version
+        result.db.execute(
+            'update info set module_version=?',
+            (version,)
+        )
 
         result.connection.commit()
         return result
@@ -93,8 +135,8 @@ class FileIndex(Generic[NodeType]):
     def __get_parent_id(
             self,
             path: Path,
-            cursor: sqlite3.Cursor,
-            metadata_cursor: sqlite3.Cursor,
+            primary_cursor: sqlite3.Cursor,
+            secondary_cursor: sqlite3.Cursor,
             cache: dict
     ):
         parent: Path = path.parent
@@ -117,23 +159,29 @@ class FileIndex(Generic[NodeType]):
 
             else:
                 grandparent_id = self.__get_parent_id(
-                    parent, cursor, metadata_cursor, cache
+                    parent, primary_cursor, secondary_cursor, cache
                 )
 
-                retry_while_locked(
-                    cursor.execute,
+                self.db.execute(
                     'insert into folders (path, parent) values (?, ?)',
-                    (str(parent), grandparent_id)
+                    (str(parent), grandparent_id),
+                    cursor=primary_cursor
                 )
 
                 self.__add_metadata(
                     parent,
-                    cursor.lastrowid,
-                    metadata_cursor
+                    primary_cursor.lastrowid,
+                    secondary_cursor
                 )
 
-                cache[parent] = cursor.lastrowid
-                return cursor.lastrowid
+                self.__add_tags(
+                    parent,
+                    primary_cursor.lastrowid,
+                    secondary_cursor
+                )
+
+                cache[parent] = primary_cursor.lastrowid
+                return primary_cursor.lastrowid
 
     def __add_metadata(
             self,
@@ -143,146 +191,174 @@ class FileIndex(Generic[NodeType]):
     ):
         if path.is_dir():
             path_type = 'folder'
-        else:
-            path_type = 'file'
-
-        if path_type == 'folder':
             metadata = self.initial_folder_metadata(path)
         else:
+            path_type = 'file'
             metadata = self.initial_file_metadata(path)
 
         if metadata:
             column_string = ','.join(metadata.keys())
             value_string = ','.join('?'*len(metadata))
 
-            retry_while_locked(
-                cursor.execute,
+            self.db.execute(
                 f'insert into {path_type}_metadata (id, {column_string}) '
                 f'values (?, {value_string})',
-                (row_id, *metadata.values())
+                (row_id, *metadata.values()),
+                cursor=cursor
             )
+
+    def __add_tags(
+            self,
+            path: Path,
+            row_id: int,
+            cursor: sqlite3.Cursor
+    ):
+        if path.is_dir():
+            path_type = 'folder'
+            tags = self.initial_folder_tags(path)
+        else:
+            path_type = 'file'
+            tags = self.initial_file_tags(path)
+
+        if tags:
+            for tag_name in tags:
+                tag = self.get_tag(tag_name)
+
+                if tag:
+                    try:
+                        self.db.execute(
+                            f'insert into {path_type}_tags (tag_id, {path_type}_id) '
+                            'values (?, ?)',
+                            (tag.id, row_id),
+                            cursor=cursor
+                        )
+                    except sqlite3.IntegrityError:
+                        print('duplicate tag', path, tag.name)
 
     @optional_generator
     def add_paths(
             self,
             paths: Iterable[Union[Path, str]],
+            *,
             recursive=True,
             yield_paths=False,
             # yield_nodes=False,
             rescan=False
     ):
-        with self.db.lock:
-            parent_cache = dict()
-            cursor = self.db.connection.cursor()
-            metadata_cursor = self.db.connection.cursor()
+        parent_cache = dict()
+        primary_cursor = self.db.connection.cursor()
+        secondary_cursor = self.db.connection.cursor()
 
-            stack = IteratorStack()
-            stack.push(map(Path, paths))
+        stack = IteratorStack()
+        stack.push(map(Path, paths))
 
-            for path in stack:  # type: Path
-                if yield_paths:
-                    yield path
+        for path in stack:  # type: Path
+            if yield_paths:
+                yield path
 
-                parent_id = self.__get_parent_id(
-                    path, cursor, metadata_cursor, parent_cache
-                )
+            parent_id = self.__get_parent_id(
+                path, primary_cursor, secondary_cursor, parent_cache
+            )
 
-                if path.is_file():
-                    try:
-                        retry_while_locked(
-                            cursor.execute,
-                            'insert into files (path, parent) values (?, ?)',
-                            (str(path), parent_id)
-                        )
+            if path.is_file():
+                try:
+                    self.db.execute(
+                        'insert into files (path, parent) values (?, ?)',
+                        (str(path), parent_id),
+                        cursor=primary_cursor,
+                    )
 
-                    except sqlite3.IntegrityError:
+                except sqlite3.IntegrityError:
+                    continue
+
+            else:
+                try:
+                    self.db.execute(
+                        'insert into folders (path, parent) values (?, ?)',
+                        (str(path), parent_id),
+                        cursor=primary_cursor,
+                    )
+
+                except sqlite3.IntegrityError:
+                    if not rescan:
                         continue
 
-                    else:
-                        self.__add_metadata(
-                            path,
-                            cursor.lastrowid,
-                            metadata_cursor
-                        )
-
                 else:
+                    parent_cache[path] = primary_cursor.lastrowid
 
-                    try:
-                        retry_while_locked(
-                            cursor.execute,
-                            'insert into folders (path, parent) values (?, ?)',
-                            (str(path), parent_id)
-                        )
+                if recursive:
+                    stack.push(path.iterdir())
 
-                    except sqlite3.IntegrityError:
-                        if not rescan:
-                            continue
+            self.__add_metadata(
+                path,
+                primary_cursor.lastrowid,
+                secondary_cursor
+            )
 
-                    else:
-                        parent_cache[path] = cursor.lastrowid
-                        self.__add_metadata(
-                            path,
-                            cursor.lastrowid,
-                            metadata_cursor
-                        )
+            self.__add_tags(
+                path,
+                primary_cursor.lastrowid,
+                secondary_cursor
+            )
 
-                    if recursive:
-                        stack.push(path.iterdir())
-
-            retry_while_locked(self.connection.commit)
+        self.db.commit()
 
     def get_file_node_by_id(
             self,
             file_id,
+            *,
             acquire_lock=False
     ) -> Optional[NodeType]:
 
         for row in self.db.execute(
             'select * from files where id=?', (file_id,),
-            use_self_cursor=True, acquire_lock=acquire_lock
+            cursor=self.node_cursor, acquire_lock=acquire_lock
         ):
             return self.new_node(row)
 
     def get_folder_node_by_id(
             self,
             folder_id,
+            *,
             acquire_lock=False
     ) -> Optional[NodeType]:
 
         for row in self.db.execute(
             'select * from folders where id=?', (folder_id,),
-            use_self_cursor=True, acquire_lock=acquire_lock
+            cursor=self.node_cursor, acquire_lock=acquire_lock
         ):
             return self.new_node(row)
 
     def get_file_node_by_path(
             self,
             path: Union[Path, str],
+            *,
             acquire_lock=False
     ) -> Optional[NodeType]:
 
         for row in self.db.execute(
             'select * from files where path=?', (str(path),),
-            use_self_cursor=True, acquire_lock=acquire_lock
+            cursor=self.node_cursor, acquire_lock=acquire_lock
         ):
             return self.new_node(row)
 
     def get_folder_node_by_path(
             self,
             path: Union[Path, str],
+            *,
             acquire_lock=False
     ) -> Optional[NodeType]:
 
         for row in self.db.execute(
             'select * from folders where path=?', (str(path),),
-            use_self_cursor=True, acquire_lock=acquire_lock
+            cursor=self.node_cursor, acquire_lock=acquire_lock
         ):
             return self.new_node(row)
 
     def vacuum(self):
         self.db.execute('vacuum')
 
-    def search(self, keyword, yield_folders=False):
+    def search(self, keyword, *, yield_folders=False):
         keyword = f'%{keyword}%'
 
         if yield_folders:
@@ -312,8 +388,38 @@ class FileIndex(Generic[NodeType]):
 
         yield from map(self.new_node, items)
 
+    def add_tag(self, name) -> FileIndexTag:
+        try:
+            cursor = self.db.execute(
+                'insert into tags (name) values (?)', (name,)
+            )
+
+        except sqlite3.IntegrityError:
+            return self.get_tag(name)
+
+        tag = FileIndexTag(
+            self, {
+                'id': cursor.lastrowid,
+                'name': name,
+            }
+        )
+        self.tags.add(tag.name)
+        self.tag_cache[tag.name] = tag
+        return tag
+
+    def get_tag(self, name) -> Optional[FileIndexTag]:
+        try:
+            return self.tag_cache[name]
+        except KeyError:
+            pass
+
     def new_node(self, row: sqlite3.Row) -> NodeType:
         return self.node_type(self, row)
+
+    def __iter__(self):
+        for node in self.get_root_nodes():
+            yield node
+            yield from node.iterdir(recursive=True)
 
     def initial_folder_metadata(
             self, path: Path
@@ -333,3 +439,13 @@ class FileIndex(Generic[NodeType]):
     #
     # def add_folder_metadata_column(self, name, type):
     #     pass
+
+    def initial_folder_tags(
+            self, path: Path
+    ) -> Optional[Set[str]]:
+        pass
+
+    def initial_file_tags(
+            self, path: Path
+    ) -> Optional[Set[str]]:
+        pass
