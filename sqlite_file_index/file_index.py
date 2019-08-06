@@ -401,6 +401,12 @@ class FileIndex(Generic[NodeType]):
         self.tag_cache[tag.name] = tag
         return tag
 
+    def get_tag(self, name) -> Optional[FileIndexTag]:
+        try:
+            return self.tag_cache[name]
+        except KeyError:
+            pass
+
     def new_node(self, row: sqlite3.Row) -> NodeType:
         return self.node_type(self, row)
 
