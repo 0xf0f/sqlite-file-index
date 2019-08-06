@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Iterable, Optional, Union, Dict
+from typing import TYPE_CHECKING, Iterable, Optional, Union, Dict, List
 from pathlib import Path
 from warnings import warn
 
@@ -192,10 +192,22 @@ class FileIndexNode:
         except sqlite3.IntegrityError:
             pass
 
+    def get_tag_names(self) -> Iterable[str]:
         if self.path.is_dir():
             path_type = 'folder'
         else:
             path_type = 'file'
+            
+        for row in self.index.db.execute(
+            f'''
+            select name from tags where id in (
+                select tag_id from {path_type}_tags
+                where {path_type}_id = ?
+            )
+            ''',
+            (self.id,)
+        ):
+            yield row['name']
 
     def __str__(self):
         return f'{self.__class__.__qualname__} ({self.path})'
