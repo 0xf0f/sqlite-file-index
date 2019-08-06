@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Iterable, Optional, Union, Dict
 from pathlib import Path
+from warnings import warn
+
 import sqlite3
 
 if TYPE_CHECKING:
@@ -132,17 +134,45 @@ class FileIndexNode:
 
             self.index.db.commit()
 
+    def remove_tag(
+        self,
+        tag: Union[str, 'FileIndexTag'],
+        *,
+        commit=True
+    ):
+        if isinstance(tag, str):
+            tag_name = tag
+            tag = self.index.get_tag(tag)
+
+            if tag is None:
+                warn(f'Tag not found: {tag_name}', UserWarning)
+                return
+
+        if self.path.is_dir():
+            path_type = 'folder'
+        else:
+            path_type = 'file'
+
+        self.index.db.execute(
+            f'delete from {path_type}_tags'
+            f'where tag_id=? and {path_type}_id=?',
+            (self.id, tag.id),
+            commit=commit
+        )
+
     def add_tag(
             self,
             tag: Union[str, 'FileIndexTag'],
             *,
             commit=True
-    ):
+    ) -> Optional['FileIndexTag']:
         if isinstance(tag, str):
+            tag_name = tag
             tag = self.index.get_tag(tag)
 
             if tag is None:
-                raise UserWarning('Tag')
+                warn(f'Tag not found: {tag_name}', UserWarning)
+                return
 
         if self.path.is_dir():
             path_type = 'folder'
@@ -157,30 +187,15 @@ class FileIndexNode:
                 (self.id, tag.id),
                 commit=commit
             )
+            return tag
 
         except sqlite3.IntegrityError:
             pass
-
-    def remove_tag(
-        self,
-        tag: Union[str, 'FileIndexTag'],
-        *,
-        commit=True
-    ):
-        if isinstance(tag, str):
-            tag = self.index.get_tag(tag)
 
         if self.path.is_dir():
             path_type = 'folder'
         else:
             path_type = 'file'
-
-        self.index.db.execute(
-            f'delete from {path_type}_tags'
-            f'where tag_id=? and {path_type}_id=?',
-            (self.id, tag.id),
-            commit=commit
-        )
 
     def __str__(self):
         return f'{self.__class__.__qualname__} ({self.path})'
