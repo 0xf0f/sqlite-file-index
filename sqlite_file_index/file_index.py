@@ -315,6 +315,11 @@ class FileIndex(Generic[NodeType]):
     def new_node(self, row: sqlite3.Row) -> NodeType:
         return self.node_type(self, row)
 
+    def __iter__(self):
+        for node in self.get_root_nodes():
+            yield node
+            yield from node.iterdir(recursive=True)
+
     def initial_folder_metadata(
             self, path: Path
     ) -> Optional[Dict[str, Union[str, int, float]]]:
