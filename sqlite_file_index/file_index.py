@@ -87,12 +87,12 @@ class FileIndex(Generic[NodeType]):
         with open(create_index_script) as script:
             result.db.execute_script(script.read())
 
-        for name, type in cls.file_metadata_columns.items():
+        for name, type in result.file_metadata_columns.items():
             result.db.execute(
                 f'alter table file_metadata add column {name} {type}'
             )
 
-        for name, type in cls.folder_metadata_columns.items():
+        for name, type in result.folder_metadata_columns.items():
             result.db.execute(
                 f'alter table folder_metadata add column {name} {type}'
             )
