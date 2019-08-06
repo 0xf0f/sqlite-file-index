@@ -16,6 +16,8 @@ create table info (
     module_version text
 );
 
+insert into info default values;
+
 create table folders (
 	id integer primary key,
 	path text,
