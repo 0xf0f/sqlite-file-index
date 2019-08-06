@@ -167,6 +167,7 @@ class FileIndex(Generic[NodeType]):
     def add_paths(
             self,
             paths: Iterable[Union[Path, str]],
+            *,
             recursive=True,
             yield_paths=False,
             # yield_nodes=False,
@@ -228,6 +229,7 @@ class FileIndex(Generic[NodeType]):
     def get_file_node_by_id(
             self,
             file_id,
+            *,
             acquire_lock=False
     ) -> Optional[NodeType]:
 
@@ -240,6 +242,7 @@ class FileIndex(Generic[NodeType]):
     def get_folder_node_by_id(
             self,
             folder_id,
+            *,
             acquire_lock=False
     ) -> Optional[NodeType]:
 
@@ -252,6 +255,7 @@ class FileIndex(Generic[NodeType]):
     def get_file_node_by_path(
             self,
             path: Union[Path, str],
+            *,
             acquire_lock=False
     ) -> Optional[NodeType]:
 
@@ -264,6 +268,7 @@ class FileIndex(Generic[NodeType]):
     def get_folder_node_by_path(
             self,
             path: Union[Path, str],
+            *,
             acquire_lock=False
     ) -> Optional[NodeType]:
 
@@ -276,7 +281,7 @@ class FileIndex(Generic[NodeType]):
     def vacuum(self):
         self.db.execute('vacuum')
 
-    def search(self, keyword, yield_folders=False):
+    def search(self, keyword, *, yield_folders=False):
         keyword = f'%{keyword}%'
 
         if yield_folders:
