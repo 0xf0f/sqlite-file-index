@@ -1,10 +1,15 @@
 import sqlite3
 
 from pathlib import Path
-from typing import Iterable, Optional, Union, Type, Dict, TypeVar, Generic
+from typing import (
+    Iterable, Optional, Union,
+    Type, Dict, TypeVar, Generic,
+    List, Set
+)
 
 from .iterator_stack import IteratorStack
 from .file_index_node import FileIndexNode
+from .file_index_tag import FileIndexTag
 from .optional_generator import optional_generator
 from .threadsafe_db import ThreadsafeDatabase
 
@@ -23,12 +28,16 @@ class FileIndex(Generic[NodeType]):
     file_metadata_columns: Dict[str, str] = dict()
     folder_metadata_columns: Dict[str, str] = dict()
 
+    tags: Set[str] = set()
+    tag_cache: Dict[str, FileIndexTag] = dict()
+
     @classmethod
     def load_from(
             cls,
             path: Union[Path, str],
             *,
-            load_metadata_columns=True
+            load_metadata_columns=True,
+            load_tags=True,
     ):
         result = cls()
         result.connection = sqlite3.Connection(path, check_same_thread=False)
@@ -55,11 +64,26 @@ class FileIndex(Generic[NodeType]):
                     row['name']
                 ] = row['type']
 
+        if load_tags:
+            result.tags = list()
+
+            for row in result.db.execute(
+                'select * from tags'
+            ):
+                tag = FileIndexTag(result, row)
+                result.tags.append(tag.name)
+                result.tag_cache[tag.name] = tag
+
         return result
 
     @classmethod
     def create_new(cls, path: Union[Path, str] = ':memory:'):
-        result = cls.load_from(path, load_metadata_columns=False)
+        result = cls.load_from(
+            path,
+            load_metadata_columns=False,
+            load_tags=False,
+        )
+
         with open(create_index_script) as script:
             result.db.execute_script(script.read())
 
@@ -72,6 +96,16 @@ class FileIndex(Generic[NodeType]):
             result.db.execute(
                 f'alter table folder_metadata add column {name} {type}'
             )
+
+        if result.tags:
+            result.db.execute_many(
+                'insert into tags (name) values (?)', [[tag] for tag in result.tags],
+            )
+
+            result.tag_cache = {
+                name: FileIndexTag(result, {'name': name, 'id': index+1})
+                for index, name in enumerate(result.tags)
+            }
 
         result.connection.commit()
         return result
@@ -134,6 +168,10 @@ class FileIndex(Generic[NodeType]):
                     secondary_cursor
                 )
 
+                self.__add_tags(
+                    parent,
+                    primary_cursor.lastrowid,
+                    secondary_cursor
                 )
 
                 cache[parent] = primary_cursor.lastrowid
@@ -162,6 +200,34 @@ class FileIndex(Generic[NodeType]):
                 (row_id, *metadata.values()),
                 cursor=cursor
             )
+
+    def __add_tags(
+            self,
+            path: Path,
+            row_id: int,
+            cursor: sqlite3.Cursor
+    ):
+        if path.is_dir():
+            path_type = 'folder'
+            tags = self.initial_folder_tags(path)
+        else:
+            path_type = 'file'
+            tags = self.initial_file_tags(path)
+
+        if tags:
+            for tag_name in tags:
+                tag = self.get_tag(tag_name)
+
+                if tag:
+                    try:
+                        self.db.execute(
+                            f'insert into {path_type}_tags (tag_id, {path_type}_id) '
+                            'values (?, ?)',
+                            (tag.id, row_id),
+                            cursor=cursor
+                        )
+                    except sqlite3.IntegrityError:
+                        print('duplicate tag', path, tag.name)
 
     @optional_generator
     def add_paths(
@@ -223,6 +289,11 @@ class FileIndex(Generic[NodeType]):
                 secondary_cursor
             )
 
+            self.__add_tags(
+                path,
+                primary_cursor.lastrowid,
+                secondary_cursor
+            )
 
         self.db.commit()
 
@@ -337,3 +408,13 @@ class FileIndex(Generic[NodeType]):
     #
     # def add_folder_metadata_column(self, name, type):
     #     pass
+
+    def initial_folder_tags(
+            self, path: Path
+    ) -> Optional[Set[str]]:
+        pass
+
+    def initial_file_tags(
+            self, path: Path
+    ) -> Optional[Set[str]]:
+        pass
