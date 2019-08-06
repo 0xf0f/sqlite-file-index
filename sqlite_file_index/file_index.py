@@ -6,7 +6,7 @@ from typing import Iterable, Optional, Union, Type, Dict, TypeVar, Generic
 from .iterator_stack import IteratorStack
 from .file_index_node import FileIndexNode
 from .optional_generator import optional_generator
-from .threadsafe_db import ThreadsafeDatabase, retry_while_locked
+from .threadsafe_db import ThreadsafeDatabase
 
 cd = Path(__file__).parent
 create_index_script = cd/'create_index.sqlite'
@@ -16,6 +16,7 @@ NodeType = TypeVar('NodeType', bound=FileIndexNode)
 
 class FileIndex(Generic[NodeType]):
     connection: sqlite3.Connection
+    node_cursor: sqlite3.Cursor
     db: ThreadsafeDatabase
     node_type: Type[FileIndexNode] = FileIndexNode
 
@@ -33,6 +34,7 @@ class FileIndex(Generic[NodeType]):
         result.connection = sqlite3.Connection(path, check_same_thread=False)
         result.connection.execute('pragma foreign_keys=on;')
         result.connection.row_factory = sqlite3.Row
+        result.node_cursor = result.connection.cursor()
         result.db = ThreadsafeDatabase(result.connection)
 
         if load_metadata_columns:
@@ -93,8 +95,8 @@ class FileIndex(Generic[NodeType]):
     def __get_parent_id(
             self,
             path: Path,
-            cursor: sqlite3.Cursor,
-            metadata_cursor: sqlite3.Cursor,
+            primary_cursor: sqlite3.Cursor,
+            secondary_cursor: sqlite3.Cursor,
             cache: dict
     ):
         parent: Path = path.parent
@@ -117,23 +119,25 @@ class FileIndex(Generic[NodeType]):
 
             else:
                 grandparent_id = self.__get_parent_id(
-                    parent, cursor, metadata_cursor, cache
+                    parent, primary_cursor, secondary_cursor, cache
                 )
 
-                retry_while_locked(
-                    cursor.execute,
+                self.db.execute(
                     'insert into folders (path, parent) values (?, ?)',
-                    (str(parent), grandparent_id)
+                    (str(parent), grandparent_id),
+                    cursor=primary_cursor
                 )
 
                 self.__add_metadata(
                     parent,
-                    cursor.lastrowid,
-                    metadata_cursor
+                    primary_cursor.lastrowid,
+                    secondary_cursor
                 )
 
-                cache[parent] = cursor.lastrowid
-                return cursor.lastrowid
+                )
+
+                cache[parent] = primary_cursor.lastrowid
+                return primary_cursor.lastrowid
 
     def __add_metadata(
             self,
@@ -143,23 +147,20 @@ class FileIndex(Generic[NodeType]):
     ):
         if path.is_dir():
             path_type = 'folder'
-        else:
-            path_type = 'file'
-
-        if path_type == 'folder':
             metadata = self.initial_folder_metadata(path)
         else:
+            path_type = 'file'
             metadata = self.initial_file_metadata(path)
 
         if metadata:
             column_string = ','.join(metadata.keys())
             value_string = ','.join('?'*len(metadata))
 
-            retry_while_locked(
-                cursor.execute,
+            self.db.execute(
                 f'insert into {path_type}_metadata (id, {column_string}) '
                 f'values (?, {value_string})',
-                (row_id, *metadata.values())
+                (row_id, *metadata.values()),
+                cursor=cursor
             )
 
     @optional_generator
@@ -171,65 +172,58 @@ class FileIndex(Generic[NodeType]):
             # yield_nodes=False,
             rescan=False
     ):
-        with self.db.lock:
-            parent_cache = dict()
-            cursor = self.db.connection.cursor()
-            metadata_cursor = self.db.connection.cursor()
+        parent_cache = dict()
+        primary_cursor = self.db.connection.cursor()
+        secondary_cursor = self.db.connection.cursor()
 
-            stack = IteratorStack()
-            stack.push(map(Path, paths))
+        stack = IteratorStack()
+        stack.push(map(Path, paths))
 
-            for path in stack:  # type: Path
-                if yield_paths:
-                    yield path
+        for path in stack:  # type: Path
+            if yield_paths:
+                yield path
 
-                parent_id = self.__get_parent_id(
-                    path, cursor, metadata_cursor, parent_cache
-                )
+            parent_id = self.__get_parent_id(
+                path, primary_cursor, secondary_cursor, parent_cache
+            )
 
-                if path.is_file():
-                    try:
-                        retry_while_locked(
-                            cursor.execute,
-                            'insert into files (path, parent) values (?, ?)',
-                            (str(path), parent_id)
-                        )
+            if path.is_file():
+                try:
+                    self.db.execute(
+                        'insert into files (path, parent) values (?, ?)',
+                        (str(path), parent_id),
+                        cursor=primary_cursor,
+                    )
 
-                    except sqlite3.IntegrityError:
+                except sqlite3.IntegrityError:
+                    continue
+
+            else:
+                try:
+                    self.db.execute(
+                        'insert into folders (path, parent) values (?, ?)',
+                        (str(path), parent_id),
+                        cursor=primary_cursor,
+                    )
+
+                except sqlite3.IntegrityError:
+                    if not rescan:
                         continue
 
-                    else:
-                        self.__add_metadata(
-                            path,
-                            cursor.lastrowid,
-                            metadata_cursor
-                        )
-
                 else:
+                    parent_cache[path] = primary_cursor.lastrowid
 
-                    try:
-                        retry_while_locked(
-                            cursor.execute,
-                            'insert into folders (path, parent) values (?, ?)',
-                            (str(path), parent_id)
-                        )
+                if recursive:
+                    stack.push(path.iterdir())
 
-                    except sqlite3.IntegrityError:
-                        if not rescan:
-                            continue
+            self.__add_metadata(
+                path,
+                primary_cursor.lastrowid,
+                secondary_cursor
+            )
 
-                    else:
-                        parent_cache[path] = cursor.lastrowid
-                        self.__add_metadata(
-                            path,
-                            cursor.lastrowid,
-                            metadata_cursor
-                        )
 
-                    if recursive:
-                        stack.push(path.iterdir())
-
-            retry_while_locked(self.connection.commit)
+        self.db.commit()
 
     def get_file_node_by_id(
             self,
@@ -239,7 +233,7 @@ class FileIndex(Generic[NodeType]):
 
         for row in self.db.execute(
             'select * from files where id=?', (file_id,),
-            use_self_cursor=True, acquire_lock=acquire_lock
+            cursor=self.node_cursor, acquire_lock=acquire_lock
         ):
             return self.new_node(row)
 
@@ -251,7 +245,7 @@ class FileIndex(Generic[NodeType]):
 
         for row in self.db.execute(
             'select * from folders where id=?', (folder_id,),
-            use_self_cursor=True, acquire_lock=acquire_lock
+            cursor=self.node_cursor, acquire_lock=acquire_lock
         ):
             return self.new_node(row)
 
@@ -263,7 +257,7 @@ class FileIndex(Generic[NodeType]):
 
         for row in self.db.execute(
             'select * from files where path=?', (str(path),),
-            use_self_cursor=True, acquire_lock=acquire_lock
+            cursor=self.node_cursor, acquire_lock=acquire_lock
         ):
             return self.new_node(row)
 
@@ -275,7 +269,7 @@ class FileIndex(Generic[NodeType]):
 
         for row in self.db.execute(
             'select * from folders where path=?', (str(path),),
-            use_self_cursor=True, acquire_lock=acquire_lock
+            cursor=self.node_cursor, acquire_lock=acquire_lock
         ):
             return self.new_node(row)
 
