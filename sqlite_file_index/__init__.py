@@ -6,6 +6,7 @@ __all__ = [
     'FileIndex',
     'FileIndexNode',
     'FileIndexTask',
+    'version'
 ]
 
 name = 'sqlite_file_index'
