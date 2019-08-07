@@ -41,16 +41,16 @@ class ThreadsafeDatabase:
 
     def execute(
             self,
-            query, params=(),
-            use_self_cursor=False,
+            query,
+            params=(),
+            *,
+            cursor=None,
             commit=False,
             acquire_lock=True
     ) -> sqlite3.Cursor:
 
         with conditional_lock(self.lock, acquire_lock):
-            if use_self_cursor:
-                cursor = self.cursor
-            else:
+            if cursor is None:
                 cursor = self.connection.cursor()
 
             retry_while_locked(cursor.execute, query, params)
@@ -63,14 +63,13 @@ class ThreadsafeDatabase:
     def execute_multiple(
             self,
             queries_and_params: Iterable[Tuple[str, Tuple[Any, ...]]],
-            use_self_cursor=False,
+            *,
+            cursor=None,
             commit=False,
             acquire_lock=True
     ):
         with conditional_lock(self.lock, acquire_lock):
-            if use_self_cursor:
-                cursor = self.cursor
-            else:
+            if cursor is None:
                 cursor = self.connection.cursor()
 
             for query, params in queries_and_params:
@@ -82,14 +81,13 @@ class ThreadsafeDatabase:
     def execute_many(
             self,
             query, sequence_of_params,
-            use_self_cursor=False,
+            *,
+            cursor=None,
             commit=False,
             acquire_lock=True
     ):
         with conditional_lock(self.lock, acquire_lock):
-            if use_self_cursor:
-                cursor = self.cursor
-            else:
+            if cursor is None:
                 cursor = self.connection.cursor()
 
             retry_while_locked(cursor.executemany, query, sequence_of_params)
@@ -100,15 +98,14 @@ class ThreadsafeDatabase:
     def execute_script(
             self,
             script,
-            use_self_cursor=False,
+            *,
+            cursor=None,
             commit=False,
             acquire_lock=True
     ) -> sqlite3.Cursor:
 
         with conditional_lock(self.lock, acquire_lock):
-            if use_self_cursor:
-                cursor = self.cursor
-            else:
+            if cursor is None:
                 cursor = self.connection.cursor()
 
             retry_while_locked(cursor.executescript, script)
